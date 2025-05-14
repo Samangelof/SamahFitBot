@@ -19,6 +19,8 @@ from bot.services.supplements import (
     process_sports_nutrition_budget
 )
 
+from bot.handlers.chat import handle_text_message
+
 
 def register_handlers(dp: Dispatcher):
     dp.register_message_handler(start_command, commands=["start"], state="*")
@@ -53,3 +55,5 @@ def register_handlers(dp: Dispatcher):
     dp.register_message_handler(process_sports_nutrition_experience, state=ParticipantStates.WAITING_FOR_SPORTS_NUTRITION_EXPERIENCE)
     dp.register_message_handler(process_sports_nutrition_types, state=ParticipantStates.WAITING_FOR_SPORTS_NUTRITION_TYPES)
     dp.register_message_handler(process_sports_nutrition_budget, state=ParticipantStates.WAITING_FOR_SPORTS_NUTRITION_BUDGET)
+    
+    dp.register_message_handler(handle_text_message, state=None)

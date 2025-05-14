@@ -5,6 +5,7 @@ from bot.settings.setup_bot import dp, bot, storage, db
 from bot.handlers.controller import register_handlers
 from bot.utils.logger import log_info
 from bot.payment_api.webhook_server import run_webhook_app
+from bot.services.openai_client import openai_client
 
 
 async def start_polling_with_retry():
@@ -39,13 +40,17 @@ async def main():
     
     # Запуск вебхук-сервера как фоновой задачи
     webhook_task = asyncio.create_task(run_webhook_app())
-    
+
+    if not openai_client.session:
+        await openai_client._create_session()
+
     try:
         await start_polling_with_retry()
     except Exception as e:
         log_info(f"Бот остановлен из-за ошибки: {e}")
     finally:
         # Корректное завершение
+        await openai_client.close_session()
         webhook_task.cancel()
         try:
             await webhook_task

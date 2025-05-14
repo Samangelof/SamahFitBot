@@ -9,45 +9,44 @@ from bot.utils.excel_export import export_to_excel
 from bot.settings.config import ADMIN_IDS, TELEGRAM_BOT_USERNAME
 from bot.services.supplements import process_sports_nutrition_experience
 
-# #! DEBUG [HACK] - убрать на проде
-# @dp.message_handler(commands=["start"], state="*")
-# async def start_command(message: types.Message, state: FSMContext):
-#     """[HACK] Скидываем на нужный стейт для тестов"""
-#     await state.set_state(ParticipantStates.WAITING_FOR_SPORTS_NUTRITION_EXPERIENCE)
 
-#     await process_sports_nutrition_experience(message, state)
-
-
-
-
+#! DEBUG [HACK] - убрать на проде
 @dp.message_handler(commands=["start"], state="*")
 async def start_command(message: types.Message, state: FSMContext):
-    """Обработчик команды /start с поддержкой рефералки"""
-    log_info(f"start_command | message: {message.text}")
-    await state.finish()
-    log_info(f'message.from_user: {message.from_user}')
-    db.add_user_if_not_exists(message.from_user)
-    db.log_user_visit(message.from_user)
+    """[HACK] Скидываем на нужный стейт для тестов"""
+    await state.set_state(ParticipantStates.WAITING_FOR_SPORTS_NUTRITION_EXPERIENCE)
+
+    await process_sports_nutrition_experience(message, state)
 
 
-    args = message.get_args()
-    if args.isdigit():
-        inviter_telegram_id = int(args)
-        if inviter_telegram_id != message.from_user.id:
-            db.add_referral(inviter_telegram_id, message.from_user.id)
-            log_info(f"User {message.from_user.id} был приглашен пользователем {inviter_telegram_id}")
-        else:
-            log_info("Пользователь попытался пригласить сам себя — пропускаем")
+# @dp.message_handler(commands=["start"], state="*")
+# async def start_command(message: types.Message, state: FSMContext):
+#     """Обработчик команды /start с поддержкой рефералки"""
+#     log_info(f"start_command | message: {message.text}")
+#     await state.finish()
+#     log_info(f'message.from_user: {message.from_user}')
+#     db.add_user_if_not_exists(message.from_user)
+#     db.log_user_visit(message.from_user)
 
-    await message.answer(
-        "Привет! Готов помочь тебе составить персональную программу тренировок и питания 💪\n\n"
-    )
 
-    video_path = InputFile("bot/roundles/start.mp4")
-    await message.answer_video_note(video_path)
+#     args = message.get_args()
+#     if args.isdigit():
+#         inviter_telegram_id = int(args)
+#         if inviter_telegram_id != message.from_user.id:
+#             db.add_referral(inviter_telegram_id, message.from_user.id)
+#             log_info(f"User {message.from_user.id} был приглашен пользователем {inviter_telegram_id}")
+#         else:
+#             log_info("Пользователь попытался пригласить сам себя — пропускаем")
 
-    await message.answer("Давай начнем! 👇", reply_markup=get_start_keyboard())
-    await ParticipantStates.WAITING_WELCOME.set()
+#     await message.answer(
+#         "Привет! Готов помочь тебе составить персональную программу тренировок и питания 💪\n\n"
+#     )
+
+#     video_path = InputFile("bot/roundles/start.mp4")
+#     await message.answer_video_note(video_path)
+
+#     await message.answer("Давай начнем! 👇", reply_markup=get_start_keyboard())
+#     await ParticipantStates.WAITING_WELCOME.set()
 
 
 

@@ -184,5 +184,8 @@ async def process_sports_nutrition_budget(message: types.Message, state: FSMCont
     log_info(f"Завершена анкета с данными: {user_data}")
     log_info(f"ID заявки: {application_id}")
     log_info(f"!--ЗАВЕРШЕНО--!")
-    
+    current_state = await state.get_state()
+    log_info(f"Текущий state до финиша: {current_state}")
     await state.finish()
+    current_state = await state.get_state()
+    log_info(f"Текущий state после финиша: {current_state}")
