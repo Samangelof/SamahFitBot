@@ -46,6 +46,7 @@ class DatabaseManager:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     payment_status TEXT DEFAULT 'не оплачено',
                     payment_id TEXT,
+                    payment_url TEXT,
                     payment_date TIMESTAMP,
                     FOREIGN KEY (user_id) REFERENCES users(id)
                 )
@@ -69,8 +70,19 @@ class DatabaseManager:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER NOT NULL,
                     invited_user_id INTEGER NOT NULL,
+                    paid INTEGER DEFAULT 0,
                     discount_applied INTEGER DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS promocodes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    code TEXT UNIQUE NOT NULL,
+                    discount_percent INTEGER NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    is_active INTEGER DEFAULT 1
                 )
             ''')
 
@@ -195,19 +207,17 @@ class DatabaseManager:
     def get_referral_count(self, telegram_id: int) -> int:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            
-            # Получаем внутренний user_id по telegram_id
+
             cursor.execute("SELECT id FROM users WHERE telegram_id = ?", (telegram_id,))
             user_row = cursor.fetchone()
             if not user_row:
-                return 0  # Пользователь не найден
-            
+                return 0
             user_id = user_row[0]
-            
-            # Считаем количество приглашённых
-            cursor.execute("SELECT COUNT(*) FROM referrals WHERE user_id = ?", (user_id,))
+
+            cursor.execute("SELECT COUNT(*) FROM referrals WHERE user_id = ? AND paid = 1", (user_id,))
             count = cursor.fetchone()[0]
             return count
+
 
     def get_discount_percent(self, telegram_id: int) -> int:
         count = self.get_referral_count(telegram_id)
@@ -314,6 +324,32 @@ class DatabaseManager:
             print(f"Ошибка при сохранении заявки: {e}")
             return 0
 
+    def mark_referral_paid(self, invited_telegram_id: int):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            # Получаем user_id приглашённого
+            cursor.execute("SELECT id FROM users WHERE telegram_id = ?", (invited_telegram_id,))
+            row = cursor.fetchone()
+            if not row:
+                return
+            invited_user_id = row[0]
+            # Помечаем рефералку как оплаченную
+            cursor.execute(
+                "UPDATE referrals SET paid = 1 WHERE invited_user_id = ?",
+                (invited_user_id,)
+            )
+            conn.commit()
+
+    def update_payment_url(self, application_id: int, payment_url: str):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE applications SET payment_url = ? WHERE id = ?",
+                (payment_url, application_id)
+            )
+            conn.commit()
+
+
     def update_payment_status(self, application_id: int, payment_status: str, payment_id: Optional[str] = None) -> bool:
         """
         Обновляет статус оплаты заявки.
@@ -336,6 +372,15 @@ class DatabaseManager:
                     cursor.execute('SELECT user_id FROM applications WHERE id = ?', (application_id,))
                     user_id = cursor.fetchone()[0]
                     self.add_user_access(user_id) 
+
+                    # -----------------------------------
+                    cursor.execute('SELECT telegram_id FROM users WHERE id = ?', (user_id,))
+                    telegram_row = cursor.fetchone()
+                    if telegram_row:
+                        telegram_id = telegram_row[0]
+                        self.mark_referral_paid(telegram_id)
+                    # -----------------------------------
+
                 else:
                     cursor.execute(
                         'UPDATE applications SET payment_status = ?, payment_id = ? WHERE id = ?',

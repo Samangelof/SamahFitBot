@@ -7,6 +7,7 @@ from aiogram import Bot
 from bot.utils.logger import log_info
 from bot.services.payment_service import send_thank_you_message
 from bot.utils.utils import format_application
+from bot.settings.setup_bot import db
 
 
 import hashlib
@@ -21,7 +22,11 @@ async def handle_webhook(request):
         raw_data = await request.read()
         data = await request.json()
         
-        signature = request.headers.get('Idempotence-Key')
+        signature = (
+            request.headers.get('X-Webhook-Signature-SHA256') or
+            request.headers.get('Idempotence-Key')
+        )
+
         
         shop_secret = SHOP_SECRET_KEY
         if not verify_signature(raw_data, signature, shop_secret):
@@ -73,8 +78,12 @@ async def handle_webhook(request):
             application_id = row['application_id']
             log_info(f"answers from DB: {row['answers']}")
             answers = json.loads(row['answers'])
-
             conn.commit()
+
+            # <<< ВСТАВЬ ЭТО СЮДА >>>
+            db.mark_referral_paid(user_telegram_id)
+            # <<< ВСТАВЬ ЭТО СЮДА >>>
+
             
             await send_thank_you_message(user_telegram_id)
 
@@ -92,7 +101,7 @@ async def handle_webhook(request):
         log_info("Ошибка декодирования JSON в запросе")
         return web.Response(status=400, text="Некорректный JSON")
     except Exception as e:
-        log_info(f"Ошибка обработки webhook: {str(e)}", exc_info=True)
+        log_info(f"Ошибка обработки webhook: {str(e)}")
         return web.Response(status=500, text="Внутренняя ошибка сервера")
 
 def verify_signature(raw_data, signature, secret_key):

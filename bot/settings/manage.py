@@ -1,6 +1,6 @@
 import logging
 import asyncio
-from aiogram.utils.exceptions import NetworkError
+from aiohttp import ClientError
 from bot.settings.setup_bot import dp, bot, storage, db
 from bot.handlers.controller import register_handlers
 from bot.utils.logger import log_info
@@ -16,7 +16,7 @@ async def start_polling_with_retry():
         try:
             await dp.start_polling()
             break
-        except NetworkError as e:
+        except ClientError as e:
             log_info(f"Ошибка сети ({e}): попытка {attempt + 1} из {retry_count}.")
             if attempt < retry_count - 1:
                 await asyncio.sleep(delay)

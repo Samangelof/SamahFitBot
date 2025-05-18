@@ -8,13 +8,32 @@ from bot.keyboards.keyboards import get_start_keyboard
 from bot.utils.excel_export import export_to_excel
 from bot.settings.config import ADMIN_IDS, TELEGRAM_BOT_USERNAME
 from bot.services.supplements import process_sports_nutrition_experience
+from bot.settings.setup_bot import db
 
 
-#! DEBUG [HACK] - убрать на проде
+# ! DEBUG [HACK] - убрать на проде
 @dp.message_handler(commands=["start"], state="*")
 async def start_command(message: types.Message, state: FSMContext):
     """[HACK] Скидываем на нужный стейт для тестов"""
     await state.set_state(ParticipantStates.WAITING_FOR_SPORTS_NUTRITION_EXPERIENCE)
+
+    log_info(f'message.from_user: {message.from_user}')
+    db.add_user_if_not_exists(message.from_user)
+    db.log_user_visit(message.from_user)
+
+
+    args = message.get_args()
+    if args.isdigit():
+        inviter_telegram_id = int(args)
+        if inviter_telegram_id != message.from_user.id:
+            db.add_referral(inviter_telegram_id, message.from_user.id)
+            log_info(f"User {message.from_user.id} был приглашен пользователем {inviter_telegram_id}")
+        else:
+            log_info("Пользователь попытался пригласить сам себя — пропускаем")
+
+    await message.answer(
+        "Привет! Готов помочь тебе составить персональную программу тренировок и питания 💪\n\n"
+    )
 
     await process_sports_nutrition_experience(message, state)
 
@@ -53,15 +72,15 @@ async def start_command(message: types.Message, state: FSMContext):
 
 @dp.message_handler(commands=['status'], state="*")
 async def check_payment_status_command(message: types.Message):
-    """Обработчик команды для проверки статуса оплаты"""
+    """Обработчик команды для проверки статуса оплаты (антиспам!)"""
     log_info(f"check_payment_status_command | from user {message.from_user.id}")
 
     applications = db.get_user_applications(message.from_user.id)
-    
+
     if not applications:
         await message.answer("У тебя еще нет заявок. Чтобы создать заявку, нажми /start")
         return
-    
+
     latest_app = applications[0]
 
     if latest_app['payment_status'] == 'оплачено':
@@ -80,21 +99,46 @@ async def check_payment_status_command(message: types.Message):
             "Скоро начнём!\n"
             "🔥 #ТвойПутьНачался"
         )
-    else:
-        # Если заявка не оплачена, предлагаем повторить оплату
-        payment_id = latest_app.get('payment_id')
-        
-        if payment_id:
-            from bot.services.payment_service import generate_payment_link
-            await generate_payment_link(message, None, latest_app['id'])
-        else:
-            await message.answer(
-                "🔄 Твоя заявка еще не оплачена.\n\n"
-                "Для оплаты используй кнопку ниже:",
-                reply_markup=InlineKeyboardMarkup().add(
-                    InlineKeyboardButton("Оплатить заявку", callback_data=f"pay_{latest_app['id']}")
-                )
+        return
+
+    # Если заявка не оплачена, работаем с payment_id/payment_url
+    payment_id = latest_app.get('payment_id')
+    payment_url = latest_app.get('payment_url')  # добавь это поле в БД и сохраняй при генерации ссылки
+
+    if payment_id and payment_url:
+        # Если уже есть активная ссылка — просто повторно отправляем её, не создаём новую!
+        await message.answer(
+            "🔄 Твоя заявка еще не оплачена.\n\n"
+            "Для оплаты используй кнопку ниже:",
+            reply_markup=InlineKeyboardMarkup().add(
+                InlineKeyboardButton("Оплатить заявку", url=payment_url)
             )
+        )
+    else:
+        # Генерируем новую ссылку только если её ещё нет
+        from bot.services.payment_service import generate_payment_link
+        await generate_payment_link(message, None, latest_app['id'])
+
+
+
+
+@dp.message_handler(commands=["promocode"], state="*")
+async def ask_promocode(message: types.Message, state: FSMContext):
+    await message.answer("Введи промокод, если есть:")
+    await state.set_state("waiting_for_promocode")
+
+@dp.message_handler(state="waiting_for_promocode")
+async def process_promocode(message: types.Message, state: FSMContext):
+    code = message.text.strip()
+    promocode = db.get_promocode(code)
+    if promocode and promocode[1]:
+        discount = promocode[0]
+        await state.update_data(promocode=code.upper(), promocode_discount=discount)
+        await message.answer(f"Промокод принят! Скидка {discount}%")
+    else:
+        await message.answer("Такого промокода нет или он не активен. Попробуй ещё раз.")
+    await state.finish()
+
 
 @dp.message_handler(commands=["my_discount"], state="*")
 async def my_discount_command(message: types.Message):

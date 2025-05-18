@@ -5,8 +5,9 @@ import asyncio
 from aiogram import types
 from aiogram.dispatcher import FSMContext
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram import Bot
 from bot.utils.logger import log_info
-from bot.settings.config import SHOP_ID, SHOP_SECRET_KEY, PAYMENT_AMOUNT, TELEGRAM_BOT_USERNAME
+from bot.settings.config import SHOP_ID, SHOP_SECRET_KEY, PAYMENT_AMOUNT, TELEGRAM_BOT_USERNAME, BOT_TOKEN
 import base64
 
 
@@ -37,7 +38,7 @@ async def check_payment_status(payment_id: str) -> bool:
                         return True
                 return False
     except Exception as e:
-        log_info(f"Ошибка при проверке статуса платежа: {str(e)}", exc_info=True)
+        log_info(f"Ошибка при проверке статуса платежа: {str(e)}")
         return False
 
 
@@ -117,6 +118,7 @@ async def generate_payment_link(message: types.Message, state: FSMContext, appli
                     confirmation_url = response_data.get('confirmation', {}).get('confirmation_url')
                     
                     if confirmation_url:
+                        db.update_payment_url(application_id, confirmation_url)
                         await message.answer(
                             "Для получения персональной программы необходимо произвести оплату.\n\n"
                             f"Сумма к оплате с учётом скидки: {final_amount} руб. (скидка {discount_percent}%)\n\n"
@@ -140,7 +142,7 @@ async def generate_payment_link(message: types.Message, state: FSMContext, appli
         return False
         
     except Exception as e:
-        log_info(f"Исключение при создании платежа: {str(e)}", exc_info=True)
+        log_info(f"Исключение при создании платежа: {str(e)}")
         await message.answer(
             "Извини, произошла ошибка при создании платежа. Пожалуйста, попробуй позже или свяжись с администратором."
         )
@@ -151,8 +153,6 @@ async def send_thank_you_message(user_id: int):
     """
     Отправка благодарственного сообщения после успешной оплаты
     """
-    from aiogram import Bot
-    from settings.config import BOT_TOKEN
     
     bot = Bot(token=BOT_TOKEN)
     
@@ -173,5 +173,5 @@ async def send_thank_you_message(user_id: int):
         log_info(f"Отправлено благодарственное сообщение пользователю {user_id}")
         return True
     except Exception as e:
-        log_info(f"Ошибка при отправке благодарственного сообщения: {str(e)}", exc_info=True)
+        log_info(f"Ошибка при отправке благодарственного сообщения: {str(e)}")
         return False

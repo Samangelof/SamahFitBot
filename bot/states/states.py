@@ -38,6 +38,9 @@ class ParticipantStates(StatesGroup):
     WAITING_FOR_SPORTS_NUTRITION_TYPES = State()
     WAITING_FOR_SPORTS_NUTRITION_BUDGET = State()
     
+    WAITING_FOR_CODE = State()
+    WAITING_FOR_PERCENT = State()
+
     COMPLETED = State()
 
 
