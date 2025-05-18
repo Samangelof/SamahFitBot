@@ -28,17 +28,14 @@ async def start_polling_with_retry():
             raise
 
 async def main():
-    # Настройка логирования
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s'
     )
     
-    # Инициализация
     log_info(f"DB instance: {db}")
     register_handlers(dp)
     
-    # Запуск вебхук-сервера как фоновой задачи
     webhook_task = asyncio.create_task(run_webhook_app())
 
     if not openai_client.session:
@@ -49,7 +46,6 @@ async def main():
     except Exception as e:
         log_info(f"Бот остановлен из-за ошибки: {e}")
     finally:
-        # Корректное завершение
         await openai_client.close_session()
         webhook_task.cancel()
         try:

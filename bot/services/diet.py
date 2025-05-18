@@ -1,7 +1,6 @@
 from aiogram import Dispatcher, types
 from aiogram.dispatcher import FSMContext
 from aiogram.types import InputFile, ReplyKeyboardRemove
-from bot.database.sqlite_db import DatabaseManager
 from bot.utils.excel_export import export_to_excel
 from bot.settings.setup_bot import dp
 from bot.states.states import ParticipantStates

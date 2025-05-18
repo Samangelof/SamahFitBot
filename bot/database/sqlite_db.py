@@ -97,7 +97,6 @@ class DatabaseManager:
             ''', (user.id, user.username, user.first_name, user.last_name, user.language_code))
             conn.commit()
 
-
     def add_access(self, user_id):
         """Добавляет доступ пользователю на 30 дней после оплаты"""
         with sqlite3.connect(self.db_path) as conn:
@@ -129,7 +128,6 @@ class DatabaseManager:
             if access:
                 return True  # Доступ ещё не истёк
             return False  # Доступ истёк или не найден
-
 
 
     def log_user_visit(self, user):
@@ -203,7 +201,6 @@ class DatabaseManager:
             conn.commit()
 
 
-
     def get_referral_count(self, telegram_id: int) -> int:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -227,9 +224,6 @@ class DatabaseManager:
             return 25
         else:
             return 0
-
-
-
 
 
 

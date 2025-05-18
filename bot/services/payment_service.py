@@ -2,14 +2,14 @@
 import uuid
 import aiohttp
 import asyncio
+import base64
 from aiogram import types
 from aiogram.dispatcher import FSMContext
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram import Bot
 from bot.utils.logger import log_info
+from bot.settings.setup_bot import db
 from bot.settings.config import SHOP_ID, SHOP_SECRET_KEY, PAYMENT_AMOUNT, TELEGRAM_BOT_USERNAME, BOT_TOKEN
-import base64
-
 
 
 async def check_payment_status(payment_id: str) -> bool:
@@ -41,7 +41,6 @@ async def check_payment_status(payment_id: str) -> bool:
         log_info(f"Ошибка при проверке статуса платежа: {str(e)}")
         return False
 
-
 async def handle_payment_reminder(message, payment_id: str, confirmation_url: str):
     """
     Напоминание пользователю о необходимости оплаты через 24 часа,
@@ -62,11 +61,6 @@ async def generate_payment_link(message: types.Message, state: FSMContext, appli
     """
     Генерирует ссылку на оплату через ЮKassa
     """
-    from bot.database.sqlite_db import DatabaseManager
-    from bot.settings.config import DATABASE_PATH
-    
-    db = DatabaseManager(DATABASE_PATH)
-    
     # 1. Получаем Telegram ID пользователя
     telegram_id = message.from_user.id
 
@@ -76,12 +70,11 @@ async def generate_payment_link(message: types.Message, state: FSMContext, appli
     # 3. Считаем финальную сумму
     base_amount = float(PAYMENT_AMOUNT)  # например 1590₽
     final_amount = base_amount * (1 - discount_percent / 100)
-    final_amount = round(final_amount, 2)  # округляем до копеек, как требует ЮKassa
-    
+    final_amount = round(final_amount, 2)
+
     payment_id = str(uuid.uuid4())
     db.update_payment_status(application_id, "не оплачено", payment_id)
 
-    
     payment_data = {
         "amount": {
             "value": str(final_amount),
@@ -147,7 +140,6 @@ async def generate_payment_link(message: types.Message, state: FSMContext, appli
             "Извини, произошла ошибка при создании платежа. Пожалуйста, попробуй позже или свяжись с администратором."
         )
         return False
-
 
 async def send_thank_you_message(user_id: int):
     """

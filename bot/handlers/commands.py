@@ -3,46 +3,21 @@ from aiogram.dispatcher import FSMContext
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputFile
 from bot.settings.setup_bot import dp, db
 from bot.states.states import ParticipantStates
-from bot.utils.logger import log_info, log_error, log_warning
+from bot.utils.logger import log_info, log_warning
 from bot.keyboards.keyboards import get_start_keyboard
 from bot.utils.excel_export import export_to_excel
 from bot.settings.config import ADMIN_IDS, TELEGRAM_BOT_USERNAME
-from bot.services.supplements import process_sports_nutrition_experience
 from bot.settings.setup_bot import db
+from bot.database.crud import user as user_crud
+from bot.database.crud import visits as visit_crud
 
 
-# ! DEBUG [HACK] - убрать на проде
-@dp.message_handler(commands=["start"], state="*")
-async def start_command(message: types.Message, state: FSMContext):
-    """[HACK] Скидываем на нужный стейт для тестов"""
-    await state.set_state(ParticipantStates.WAITING_FOR_SPORTS_NUTRITION_EXPERIENCE)
-
-    log_info(f'message.from_user: {message.from_user}')
-    db.add_user_if_not_exists(message.from_user)
-    db.log_user_visit(message.from_user)
-
-
-    args = message.get_args()
-    if args.isdigit():
-        inviter_telegram_id = int(args)
-        if inviter_telegram_id != message.from_user.id:
-            db.add_referral(inviter_telegram_id, message.from_user.id)
-            log_info(f"User {message.from_user.id} был приглашен пользователем {inviter_telegram_id}")
-        else:
-            log_info("Пользователь попытался пригласить сам себя — пропускаем")
-
-    await message.answer(
-        "Привет! Готов помочь тебе составить персональную программу тренировок и питания 💪\n\n"
-    )
-
-    await process_sports_nutrition_experience(message, state)
-
-
+# # ! DEBUG [HACK] - убрать на проде
 # @dp.message_handler(commands=["start"], state="*")
 # async def start_command(message: types.Message, state: FSMContext):
-#     """Обработчик команды /start с поддержкой рефералки"""
-#     log_info(f"start_command | message: {message.text}")
-#     await state.finish()
+#     """[HACK] Скидываем на нужный стейт для тестов"""
+#     await state.set_state(ParticipantStates.WAITING_FOR_SPORTS_NUTRITION_EXPERIENCE)
+
 #     log_info(f'message.from_user: {message.from_user}')
 #     db.add_user_if_not_exists(message.from_user)
 #     db.log_user_visit(message.from_user)
@@ -61,11 +36,39 @@ async def start_command(message: types.Message, state: FSMContext):
 #         "Привет! Готов помочь тебе составить персональную программу тренировок и питания 💪\n\n"
 #     )
 
-#     video_path = InputFile("bot/roundles/start.mp4")
-#     await message.answer_video_note(video_path)
+#     await process_sports_nutrition_experience(message, state)
 
-#     await message.answer("Давай начнем! 👇", reply_markup=get_start_keyboard())
-#     await ParticipantStates.WAITING_WELCOME.set()
+
+
+
+@dp.message_handler(commands=["start"], state="*")
+async def start_command(message: types.Message, state: FSMContext):
+    """Обработчик команды /start с поддержкой рефералки"""
+    log_info(f"start_command | message: {message.text}")
+    await state.finish()
+    log_info(f'message.from_user: {message.from_user}')
+    with db.session_scope() as session:
+        user_crud.get_or_create(session, message.from_user)
+        visit_crud.log_visit(session, message.from_user)
+    
+    args = message.get_args()
+    if args.isdigit():
+        inviter_telegram_id = int(args)
+        if inviter_telegram_id != message.from_user.id:
+            db.add_referral(inviter_telegram_id, message.from_user.id)
+            log_info(f"User {message.from_user.id} был приглашен пользователем {inviter_telegram_id}")
+        else:
+            log_info("Пользователь попытался пригласить сам себя — пропускаем")
+
+    await message.answer(
+        "Привет! Готов помочь тебе составить персональную программу тренировок и питания 💪\n\n"
+    )
+
+    video_path = InputFile("bot/roundles/start.mp4")
+    await message.answer_video_note(video_path)
+
+    await message.answer("Давай начнем! 👇", reply_markup=get_start_keyboard())
+    await ParticipantStates.WAITING_WELCOME.set()
 
 
 
@@ -142,11 +145,6 @@ async def process_promocode(message: types.Message, state: FSMContext):
 
 @dp.message_handler(commands=["my_discount"], state="*")
 async def my_discount_command(message: types.Message):
-    from bot.database.sqlite_db import DatabaseManager
-    from bot.settings.config import DATABASE_PATH
-    
-    db = DatabaseManager(DATABASE_PATH)
-    
     telegram_id = message.from_user.id
     discount_percent = db.get_discount_percent(telegram_id)
     

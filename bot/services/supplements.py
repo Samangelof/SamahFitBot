@@ -2,21 +2,18 @@
 
 from aiogram import Dispatcher, types
 from aiogram.dispatcher import FSMContext
-from bot.settings.setup_bot import dp, bot
-from bot.settings.config import ADMIN_CHAT_ID
+from bot.settings.setup_bot import dp, db
 from bot.database import sqlite_db
 from bot.states.states import ParticipantStates
 from aiogram.types import InputFile
-from bot.utils.logger import log_info, log_error, log_warning
+from bot.utils.logger import log_info
 from bot.utils.utils import send_with_progress
-from bot.settings.setup_bot import db
 from bot.keyboards.keyboards import (
     get_sports_nutrition_types_keyboard, 
     get_sports_nutrition_experience_keyboard, 
     get_additional_info_keyboard,
     get_sports_nutrition_budget_keyboard,
     get_sports_nutrition_types_skip_keyboard,
-    get_back_keyboard
 )
 
 
