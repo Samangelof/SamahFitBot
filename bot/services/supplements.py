@@ -15,11 +15,14 @@ from bot.keyboards.keyboards import (
     get_sports_nutrition_budget_keyboard,
     get_sports_nutrition_types_skip_keyboard,
 )
+from bot.database.crud import applications as application_crud
+from bot.database.crud import user as user_crud
+from bot.utils.debug_log import log_user_input, log_fsm_state
 
 
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_SPORTS_NUTRITION_EXPERIENCE)
 async def process_sports_nutrition_experience(message: types.Message, state: FSMContext):
-    log_info(f"process_sports_nutrition_experience | message: {message.text}")
+    log_user_input(message, label="NUTRITION_EXPERIENCE")
 
     if message.text == "⬅️ Назад":
         await ParticipantStates.WAITING_FOR_ADDITIONAL_INFO.set()
@@ -35,6 +38,8 @@ async def process_sports_nutrition_experience(message: types.Message, state: FSM
         return await message.answer("Пожалуйста, выбери один из предложенных вариантов.")
 
     await state.update_data(sports_nutrition_experience=exp)
+    await log_fsm_state(message, state)
+
     await ParticipantStates.WAITING_FOR_SPORTS_NUTRITION_TYPES.set()
 
     if exp == "Нет":
@@ -51,13 +56,10 @@ async def process_sports_nutrition_experience(message: types.Message, state: FSM
         )
 
 
-
-
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_SPORTS_NUTRITION_TYPES)
 async def process_sports_nutrition_types(message: types.Message, state: FSMContext):
-    log_info(f"process_sports_nutrition_types | message: {message.text}")
+    log_user_input(message, label="NUTRITION_TYPES")
 
-    # назад
     if message.text == "⬅️ Назад":
         await ParticipantStates.WAITING_FOR_SPORTS_NUTRITION_EXPERIENCE.set()
         await send_with_progress(
@@ -77,7 +79,6 @@ async def process_sports_nutrition_types(message: types.Message, state: FSMConte
         )
         return
     
-    # ввод “Другие добавки”
     if message.text == "Другие добавки":
         await message.answer(
             "Укажи, какие другие добавки ты пробовал:\n\nКогда закончишь — нажми 'Далее'.",
@@ -85,7 +86,6 @@ async def process_sports_nutrition_types(message: types.Message, state: FSMConte
         )
         return
 
-    # обработка “Далее”
     if message.text == "Далее":
         data = await state.get_data()
         if not data.get("sports_nutrition_types"):
@@ -98,13 +98,13 @@ async def process_sports_nutrition_types(message: types.Message, state: FSMConte
         )
         return
 
-    # добавление обычного варианта
     if message.text in ["Протеины", "Креатин", "BCAA", "Гейнеры", "Жиросжигатели"]:
         data = await state.get_data()
         types_list = data.get("sports_nutrition_types", [])
         if message.text not in types_list:
             types_list.append(message.text)
             await state.update_data(sports_nutrition_types=types_list)
+            await log_fsm_state(message, state)
         return await message.answer(
             f"Добавлено: {message.text}\nВыбери ещё или нажми 'Далее'",
             reply_markup=get_sports_nutrition_types_keyboard()
@@ -113,13 +113,11 @@ async def process_sports_nutrition_types(message: types.Message, state: FSMConte
     await message.answer("Пожалуйста, выбери один из предложенных вариантов или нажми 'Далее'.")
 
 
-
-
-
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_SPORTS_NUTRITION_BUDGET)
 async def process_sports_nutrition_budget(message: types.Message, state: FSMContext):
     """Обработка вопроса о бюджете на спортивное питание"""
-    log_info(f"process_sports_nutrition_budget | message: {message.text}")
+    log_user_input(message, label="NUTRITION_BUDGET")
+
     if message.text == "⬅️ Назад":
         user_data = await state.get_data()
         if user_data.get("sports_nutrition_experience") == "Да":
@@ -140,32 +138,27 @@ async def process_sports_nutrition_budget(message: types.Message, state: FSMCont
 
     await state.update_data(sports_nutrition_budget=sports_nutrition_budget)
 
-    # Получаем все данные пользователя из состояния
     user_data = await state.get_data()
-    
-    # Форматируем данные для отправки админу
-    # formatted_application = format_application(user_data)
-    
-    # -- Сохраняем данные пользователя в БД --
-    # Добавляем пользователя в БД или обновляем его данные
-    db.add_user(
-        telegram_id=message.from_user.id,
-        username=message.from_user.username,
-        first_name=message.from_user.first_name,
-        last_name=message.from_user.last_name,
-        language_code=message.from_user.language_code
-    )
-    
-    # Сохраняем заявку
-    application_id = db.save_application(message.from_user.id, user_data)
-    
-    # Отправляем пользователю сообщение об успешном завершении анкеты
+    await log_fsm_state(message, state)
+
+    with db.session_scope() as session:
+        user_crud.add_or_update_user(
+            session,
+            telegram_id=message.from_user.id,
+            username=message.from_user.username,
+            first_name=message.from_user.first_name,
+            last_name=message.from_user.last_name,
+            language_code=message.from_user.language_code,
+        )
+
+    with db.session_scope() as session:
+        application_id = application_crud.save_application(session, message.from_user.id, user_data)
+
     await message.answer(
         "Спасибо за ответы! Теперь мы можем составить для тебя индивидуальную программу.",
         reply_markup=types.ReplyKeyboardRemove()
     )
-    
-    
+        
     try:
         video_path = InputFile("bot/roundles/final.mp4")
         await message.answer_video_note(video_path)

@@ -10,6 +10,8 @@ from aiogram import Bot
 from bot.utils.logger import log_info
 from bot.settings.setup_bot import db
 from bot.settings.config import SHOP_ID, SHOP_SECRET_KEY, PAYMENT_AMOUNT, TELEGRAM_BOT_USERNAME, BOT_TOKEN
+from bot.database.crud import referral as referral_crud
+from bot.database.crud import applications as application_crud
 
 
 async def check_payment_status(payment_id: str) -> bool:
@@ -61,20 +63,22 @@ async def generate_payment_link(message: types.Message, state: FSMContext, appli
     """
     Генерирует ссылку на оплату через ЮKassa
     """
-    # 1. Получаем Telegram ID пользователя
     telegram_id = message.from_user.id
 
-    # 2. Считаем скидку
-    discount_percent = db.get_discount_percent(telegram_id)
-    
-    # 3. Считаем финальную сумму
-    base_amount = float(PAYMENT_AMOUNT)  # например 1590₽
-    final_amount = base_amount * (1 - discount_percent / 100)
-    final_amount = round(final_amount, 2)
+    with db.session_scope() as session:
+        # 1. Считаем скидку
+        discount_percent = referral_crud.get_discount_percent(session, telegram_id)
 
-    payment_id = str(uuid.uuid4())
-    db.update_payment_status(application_id, "не оплачено", payment_id)
+        # 2. Считаем сумму
+        base_amount = float(PAYMENT_AMOUNT)
+        final_amount = round(base_amount * (1 - discount_percent / 100), 2)
 
+        # 3. Генерим payment_id и сохраняем "не оплачено"
+        payment_id = str(uuid.uuid4())
+        application_crud.update_payment_status(
+            session, application_id, "не оплачено", payment_id
+        )
+        
     payment_data = {
         "amount": {
             "value": str(final_amount),
@@ -111,7 +115,9 @@ async def generate_payment_link(message: types.Message, state: FSMContext, appli
                     confirmation_url = response_data.get('confirmation', {}).get('confirmation_url')
                     
                     if confirmation_url:
-                        db.update_payment_url(application_id, confirmation_url)
+                        with db.session_scope() as session:
+                            application_crud.update_payment_url(session, application_id, confirmation_url)
+
                         await message.answer(
                             "Для получения персональной программы необходимо произвести оплату.\n\n"
                             f"Сумма к оплате с учётом скидки: {final_amount} руб. (скидка {discount_percent}%)\n\n"

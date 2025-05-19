@@ -1,10 +1,8 @@
-from aiogram import Dispatcher, types
+from aiogram import types
 from aiogram.dispatcher import FSMContext
-from aiogram.types import InputFile, ReplyKeyboardRemove
-from bot.utils.excel_export import export_to_excel
 from bot.settings.setup_bot import dp
 from bot.states.states import ParticipantStates
-from bot.utils.logger import log_info, log_error, log_warning
+from bot.utils.debug_log import log_user_input, log_fsm_state
 from bot.utils.utils import send_with_progress
 from bot.keyboards.keyboards import get_back_keyboard, get_limitations_keyboard, get_eating_schedule_keyboard, get_diet_preferences_keyboard, \
     get_allergies_keyboard, get_cooking_time_keyboard, get_recipe_format_keyboard, \
@@ -15,7 +13,7 @@ from bot.keyboards.keyboards import get_back_keyboard, get_limitations_keyboard,
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_EATING_SCHEDULE)
 async def process_eating_schedule(message: types.Message, state: FSMContext):
     """Обработка режима питания"""
-    log_info(f"process_eating_schedule | message: {message.text}")
+    log_user_input(message, label="EATING_SCHEDULE")
 
     if message.text == "⬅️ Назад":
         user_data = await state.get_data()
@@ -42,14 +40,13 @@ async def process_eating_schedule(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(eating_schedule=eating_schedule)
-    
-    # Если выбран "Другой режим", запросим текстовое описание
+    await log_fsm_state(message, state)
+
     if eating_schedule == "Другой режим":
         await ParticipantStates.WAITING_FOR_EATING_SCHEDULE_DETAIL.set()
         await message.answer("Опиши свой режим питания:", reply_markup=get_back_keyboard())
         return
 
-    # После выбора режима питания — следующий шаг
     await ParticipantStates.WAITING_FOR_DIET_PREFERENCES.set()
     await send_with_progress(message, state, "Есть ли у тебя диетические предпочтения?", reply_markup=get_diet_preferences_keyboard())
 
@@ -57,7 +54,7 @@ async def process_eating_schedule(message: types.Message, state: FSMContext):
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_EATING_SCHEDULE_DETAIL)
 async def process_eating_schedule_detail(message: types.Message, state: FSMContext):
     """Обработка текста при выборе «Другой режим»"""
-    log_info(f"process_eating_schedule_detail | message: {message.text}")
+    log_user_input(message, label="EATING_SCHEDULE_DETAIL")
     if message.text == "⬅️ Назад":
         await ParticipantStates.WAITING_FOR_EATING_SCHEDULE.set()
         await send_with_progress(
@@ -72,8 +69,8 @@ async def process_eating_schedule_detail(message: types.Message, state: FSMConte
         return await message.answer("Опиши, пожалуйста, режим подробнее.")
 
     await state.update_data(eating_schedule_detail=detail)
+    await log_fsm_state(message, state)
 
-    # Переходим дальше
     await ParticipantStates.WAITING_FOR_DIET_PREFERENCES.set()
     await send_with_progress(
         message, state,
@@ -86,7 +83,7 @@ async def process_eating_schedule_detail(message: types.Message, state: FSMConte
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_DIET_PREFERENCES)
 async def process_diet_preferences(message: types.Message, state: FSMContext):
     """Обработка диетических предпочтений"""
-    log_info(f"process_diet_preferences | message: {message.text}")
+    log_user_input(message, label="DIET_PREFERENCES")
     if message.text == "⬅️ Назад":
         await ParticipantStates.WAITING_FOR_EATING_SCHEDULE.set()
         await send_with_progress(message, state, "Какой режим питания для тебя привычен?", reply_markup=get_eating_schedule_keyboard())
@@ -102,6 +99,7 @@ async def process_diet_preferences(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(diet_preferences=diet_preferences)
+    await log_fsm_state(message, state)
 
     if diet_preferences == "Другие":
         await ParticipantStates.WAITING_FOR_DIET_DETAILS.set()
@@ -114,7 +112,7 @@ async def process_diet_preferences(message: types.Message, state: FSMContext):
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_DIET_DETAILS)
 async def process_diet_details(message: types.Message, state: FSMContext):
     """Обработка деталей диетических предпочтений"""
-    log_info(f"process_diet_details | message: {message.text}")
+    log_user_input(message, label="DIET_DETAILS")
     if message.text == "⬅️ Назад":
         await ParticipantStates.WAITING_FOR_DIET_PREFERENCES.set()
         await send_with_progress(message, state, "Есть ли у тебя диетические предпочтения?", reply_markup=get_diet_preferences_keyboard())
@@ -123,12 +121,12 @@ async def process_diet_details(message: types.Message, state: FSMContext):
 
     diet_details = message.text.strip()
     
-    # Минимальная проверка
     if len(diet_details) < 3:
         await message.answer("Пожалуйста, опиши подробнее свои диетические предпочтения.")
         return
 
     await state.update_data(diet_details=diet_details)
+    await log_fsm_state(message, state)
 
     await ParticipantStates.WAITING_FOR_ALLERGIES.set()
     await send_with_progress(message, state, "Есть ли у тебя аллергии или непереносимость продуктов?", reply_markup=get_allergies_keyboard())
@@ -138,7 +136,7 @@ async def process_diet_details(message: types.Message, state: FSMContext):
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_ALLERGIES)
 async def process_allergies(message: types.Message, state: FSMContext):
     """Обработка наличия аллергий"""
-    log_info(f"process_allergies | message: {message.text}")
+    log_user_input(message, label="ALLERGIES")
     if message.text == "⬅️ Назад":
         user_data = await state.get_data()
         diet_preferences = user_data.get("diet_preferences")
@@ -158,6 +156,7 @@ async def process_allergies(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(has_allergies=allergies)
+    await log_fsm_state(message, state)
 
     if allergies == "Да":
         await ParticipantStates.WAITING_FOR_ALLERGIES_DETAILS.set()
@@ -172,7 +171,7 @@ async def process_allergies(message: types.Message, state: FSMContext):
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_ALLERGIES_DETAILS)
 async def process_allergies_details(message: types.Message, state: FSMContext):
     """Обработка деталей аллергий"""
-    log_info(f"process_allergies_details | message: {message.text}")
+    log_user_input(message, label="ALLERGIES_DETAILS")
     if message.text == "⬅️ Назад":
         await ParticipantStates.WAITING_FOR_ALLERGIES.set()
         await message.answer("Есть ли у тебя аллергии или непереносимость продуктов?", 
@@ -181,12 +180,12 @@ async def process_allergies_details(message: types.Message, state: FSMContext):
 
     allergies_details = message.text.strip()
     
-    # Минимальная проверка
     if len(allergies_details) < 3:
         await message.answer("Пожалуйста, опиши подробнее свои аллергии или непереносимость продуктов.")
         return
 
     await state.update_data(allergies_details=allergies_details)
+    await log_fsm_state(message, state)
 
     await ParticipantStates.WAITING_FOR_COOKING_TIME.set()
     await send_with_progress(message, state, "Сколько ты времени готов(а) уделять приготовлению еды ежедневно?", reply_markup=get_cooking_time_keyboard())
@@ -194,14 +193,14 @@ async def process_allergies_details(message: types.Message, state: FSMContext):
 
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_COOKING_TIME)
 async def process_cooking_time(message: types.Message, state: FSMContext):
-    log_info(f"process_cooking_time | message: {message.text}")
+    log_user_input(message, label="COOKING_TIME")
 
     if message.text == "⬅️ Назад":
         user_data = await state.get_data()
         if user_data.get("has_allergies") == "Да":
-            # 1) Переводим в нужный стейт
+            # 1) Перевожу в нужный стейт
             await ParticipantStates.WAITING_FOR_ALLERGIES_DETAILS.set()
-            # 2) Шлём вопрос через send_with_progress, чтобы было (18/26)
+            # 2) Отправляю вопрос через send_with_progress, будет (18/26)
             await send_with_progress(
                 message, state,
                 "Опиши свои аллергии или непереносимость продуктов:",
@@ -225,6 +224,7 @@ async def process_cooking_time(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(cooking_time=cooking_time)
+    await log_fsm_state(message, state)
 
     await ParticipantStates.WAITING_FOR_RECIPE_FORMAT.set()
     await send_with_progress(message, state, "Какой формат рецептов для тебя удобнее?", reply_markup=get_recipe_format_keyboard())
@@ -233,7 +233,7 @@ async def process_cooking_time(message: types.Message, state: FSMContext):
 
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_RECIPE_FORMAT)
 async def process_recipe_format(message: types.Message, state: FSMContext):
-    log_info(f"process_recipe_format | message: {message.text}")
+    log_user_input(message, label="RECIPE_FORMAT")
     if message.text == "⬅️ Назад":
         await ParticipantStates.WAITING_FOR_COOKING_TIME.set()
         await send_with_progress(
@@ -255,6 +255,7 @@ async def process_recipe_format(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(recipe_format=recipe_format)
+    await log_fsm_state(message, state)
 
     if recipe_format == "Другой формат":
         await ParticipantStates.WAITING_FOR_RECIPE_FORMAT_DETAILS.set()
@@ -264,7 +265,7 @@ async def process_recipe_format(message: types.Message, state: FSMContext):
             reply_markup=get_back_keyboard()
         )
     else:
-        # вопрос 21
+        # (21/26)
         await ParticipantStates.WAITING_FOR_TRACKING_HISTORY.set()
         await send_with_progress(
             message, state,
@@ -276,7 +277,7 @@ async def process_recipe_format(message: types.Message, state: FSMContext):
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_RECIPE_FORMAT_DETAILS)
 async def process_recipe_format_details(message: types.Message, state: FSMContext):
     """Обработка деталей формата рецептов"""
-    log_info(f"process_recipe_format_details | message: {message.text}")
+    log_user_input(message, label="RECIPE_FORMAT_DETAILS")
     if message.text == "⬅️ Назад":
         await ParticipantStates.WAITING_FOR_RECIPE_FORMAT.set()
         await send_with_progress(message, state, "Какой формат рецептов для тебя удобнее?", reply_markup=get_recipe_format_keyboard())
@@ -290,7 +291,8 @@ async def process_recipe_format_details(message: types.Message, state: FSMContex
         return
 
     await state.update_data(recipe_format_details=recipe_format_details)
-    
+    await log_fsm_state(message, state)
+
     await ParticipantStates.WAITING_FOR_TRACKING_HISTORY.set()
     await send_with_progress(message, state, "Хотел(а) бы ты вести историю изменений веса, параметры тела, достижения в тренировках?", reply_markup=get_tracking_history_keyboard())
 
@@ -298,7 +300,7 @@ async def process_recipe_format_details(message: types.Message, state: FSMContex
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_TRACKING_HISTORY)
 async def process_tracking_history(message: types.Message, state: FSMContext):
     """Обработка вопроса о ведении истории изменений"""
-    log_info(f"process_tracking_history | message: {message.text}")
+    log_user_input(message, label="TRACKING_HISTORY")
     if message.text == "⬅️ Назад":
         user_data = await state.get_data()
         recipe_format = user_data.get("recipe_format")
@@ -319,8 +321,9 @@ async def process_tracking_history(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(tracking_history=tracking_history)
+    await log_fsm_state(message, state)
 
-    # Следующий вопрос должен быть 22 (WAITING_FOR_PROGRAM_PRIORITIES)
+    # (22/26) WAITING_FOR_PROGRAM_PRIORITIES
     await ParticipantStates.WAITING_FOR_PROGRAM_PRIORITIES.set()
     await send_with_progress(
         message, state,
@@ -332,7 +335,7 @@ async def process_tracking_history(message: types.Message, state: FSMContext):
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_PROGRAM_PRIORITIES)
 async def process_program_priorities(message: types.Message, state: FSMContext):
     """Обработка вопроса о приоритетах в программе"""
-    log_info(f"process_program_priorities | message: {message.text}")
+    log_user_input(message, label="PROGRAM_PRIORITIES")
     if message.text == "⬅️ Назад":
         await ParticipantStates.WAITING_FOR_TRACKING_HISTORY.set()
         await send_with_progress(message, state, "Хотел(а) бы ты вести историю изменений веса, параметры тела, достижения в тренировках?", reply_markup=get_tracking_history_keyboard())
@@ -349,6 +352,7 @@ async def process_program_priorities(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(program_priority=program_priority)
+    await log_fsm_state(message, state)
 
     await ParticipantStates.WAITING_FOR_ADDITIONAL_INFO.set()
     await send_with_progress(message, state, "Есть ли что-то еще, что ты хотел(а) бы добавить или уточнить?", reply_markup=get_additional_info_keyboard())
@@ -357,7 +361,7 @@ async def process_program_priorities(message: types.Message, state: FSMContext):
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_ADDITIONAL_INFO)
 async def process_additional_info(message: types.Message, state: FSMContext):
     """Обработка дополнительной информации от пользователя"""
-    log_info(f"process_additional_info | message: {message.text}")
+    log_user_input(message, label="ADDITIONAL_INFO")
     
     if message.text == "⬅️ Назад":
         await ParticipantStates.WAITING_FOR_PROGRAM_PRIORITIES.set()
@@ -370,6 +374,7 @@ async def process_additional_info(message: types.Message, state: FSMContext):
 
     additional_info = message.text.strip()
     await state.update_data(additional_info=additional_info)
+    await log_fsm_state(message, state)
 
     await ParticipantStates.WAITING_FOR_SPORTS_NUTRITION_EXPERIENCE.set()
     await send_with_progress(

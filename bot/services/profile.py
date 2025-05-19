@@ -4,7 +4,7 @@ from aiogram.dispatcher import FSMContext
 from aiogram.types import InputFile, ReplyKeyboardRemove
 from bot.states.states import ParticipantStates
 from bot.keyboards.keyboards import get_gender_keyboard, get_back_keyboard, get_physical_condition_keyboard
-from bot.utils.logger import log_info, log_error, log_warning
+from bot.utils.debug_log import log_user_input, log_fsm_state
 from bot.handlers.commands import start_command
 from bot.utils.utils import send_with_progress
 
@@ -23,7 +23,9 @@ async def process_welcome(message: types.Message, state: FSMContext):
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_NAME)
 async def process_name(message: types.Message, state: FSMContext):
     """Обработка имени"""
-    log_info(f"process_name | message: {message.text}")
+    # log_info(f"[NAME] от пользователя {message.from_user.id} | @{message.from_user.username} | текст: {message.text}")
+    log_user_input(message, label="NAME")
+
     if message.text == "⬅️ Назад":
         await start_command(message, state)
         return
@@ -40,6 +42,7 @@ async def process_name(message: types.Message, state: FSMContext):
 
 
     await state.update_data(name=name)
+    await log_fsm_state(message, state)
 
     await ParticipantStates.WAITING_FOR_GENDER.set()
     await send_with_progress(message, state, "Укажи свой пол.", reply_markup=get_gender_keyboard())
@@ -48,7 +51,8 @@ async def process_name(message: types.Message, state: FSMContext):
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_GENDER)
 async def process_gender(message: types.Message, state: FSMContext):
     """Обработка пола"""
-    log_info(f"process_gender | message: {message.text}")
+    log_user_input(message, label="GENDER")
+
     if message.text == "⬅️ Назад":
         await ParticipantStates.WAITING_FOR_NAME.set()
         await send_with_progress(message, state, "Как тебя зовут?", reply_markup=get_back_keyboard())
@@ -61,7 +65,7 @@ async def process_gender(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(gender=gender)
-
+    await log_fsm_state(message, state)
     await ParticipantStates.WAITING_FOR_AGE.set()
     await send_with_progress(message, state, "Сколько тебе лет?", reply_markup=get_back_keyboard())
 
@@ -69,7 +73,7 @@ async def process_gender(message: types.Message, state: FSMContext):
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_AGE)
 async def process_age(message: types.Message, state: FSMContext):
     """Обработка возраста"""
-    log_info(f"process_age | message: {message.text}")
+    log_user_input(message, label="AGE")
     if message.text == "⬅️ Назад":
         await ParticipantStates.WAITING_FOR_GENDER.set()
         await message.answer("Укажи свой пол.", reply_markup=get_gender_keyboard())
@@ -81,6 +85,7 @@ async def process_age(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(age=int(age_text))
+    await log_fsm_state(message, state)
 
     await ParticipantStates.WAITING_FOR_HEIGHT.set()
     await send_with_progress(message, state, "Какой у тебя рост в сантиметрах?", reply_markup=get_back_keyboard())
@@ -88,7 +93,8 @@ async def process_age(message: types.Message, state: FSMContext):
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_HEIGHT)
 async def process_height(message: types.Message, state: FSMContext):
     """Обработка роста"""
-    log_info(f"process_height | message: {message.text}")
+    log_user_input(message, label="HEIGHT")
+
     if message.text == "⬅️ Назад":
         await ParticipantStates.WAITING_FOR_AGE.set()
         await message.answer("Сколько тебе лет?", reply_markup=get_back_keyboard())
@@ -100,6 +106,7 @@ async def process_height(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(height=int(height_text))
+    await log_fsm_state(message, state)
 
     await ParticipantStates.WAITING_FOR_WEIGHT.set()
     await send_with_progress(message, state, "Какой у тебя вес в килограммах?", reply_markup=get_back_keyboard())
@@ -107,7 +114,8 @@ async def process_height(message: types.Message, state: FSMContext):
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_WEIGHT)
 async def process_weight(message: types.Message, state: FSMContext):
     """Обработка веса"""
-    log_info(f"process_weight | message: {message.text}")
+    log_user_input(message, label="WEIGHT")
+
     if message.text == "⬅️ Назад":
         await ParticipantStates.WAITING_FOR_HEIGHT.set()
         await message.answer("Какой у тебя рост в сантиметрах?", reply_markup=get_back_keyboard())
@@ -128,6 +136,7 @@ async def process_weight(message: types.Message, state: FSMContext):
         return
     
     await state.update_data(weight=int(weight_text))
+    await log_fsm_state(message, state)
 
     await ParticipantStates.WAITING_FOR_PHYSICAL_CONDITION.set()
     await send_with_progress(message, state, "Как ты оцениваешь свою физическую форму?", reply_markup=get_physical_condition_keyboard())

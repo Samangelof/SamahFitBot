@@ -10,27 +10,31 @@ from bot.settings.config import ADMIN_IDS, TELEGRAM_BOT_USERNAME
 from bot.settings.setup_bot import db
 from bot.database.crud import user as user_crud
 from bot.database.crud import visits as visit_crud
+from bot.database.crud import applications as application_crud
+from bot.database.crud import visits as visit_crud
+from bot.database.crud import referral as referral_crud
 
 
 # # ! DEBUG [HACK] - убрать на проде
 # @dp.message_handler(commands=["start"], state="*")
-# async def start_command(message: types.Message, state: FSMContext):
-#     """[HACK] Скидываем на нужный стейт для тестов"""
+# async def start_command_debug_hack(message: types.Message, state: FSMContext):
+#     """[HACK] Принудительно переходит к нужному состоянию для теста"""
 #     await state.set_state(ParticipantStates.WAITING_FOR_SPORTS_NUTRITION_EXPERIENCE)
 
-#     log_info(f'message.from_user: {message.from_user}')
-#     db.add_user_if_not_exists(message.from_user)
-#     db.log_user_visit(message.from_user)
+#     log_info(f'[HACK] message.from_user: {message.from_user}')
 
+#     with db.session_scope() as session:
+#         user_crud.get_or_create(session, message.from_user)
+#         visit_crud.log_visit(session, message.from_user)
 
-#     args = message.get_args()
-#     if args.isdigit():
-#         inviter_telegram_id = int(args)
-#         if inviter_telegram_id != message.from_user.id:
-#             db.add_referral(inviter_telegram_id, message.from_user.id)
-#             log_info(f"User {message.from_user.id} был приглашен пользователем {inviter_telegram_id}")
-#         else:
-#             log_info("Пользователь попытался пригласить сам себя — пропускаем")
+#         args = message.get_args()
+#         if args.isdigit():
+#             inviter_telegram_id = int(args)
+#             if inviter_telegram_id != message.from_user.id:
+#                 referral_crud.add_referral(session, inviter_telegram_id, message.from_user.id)
+#                 log_info(f"[HACK] User {message.from_user.id} был приглашен пользователем {inviter_telegram_id}")
+#             else:
+#                 log_info("[HACK] Пользователь попытался пригласить сам себя — пропускаем")
 
 #     await message.answer(
 #         "Привет! Готов помочь тебе составить персональную программу тренировок и питания 💪\n\n"
@@ -41,24 +45,25 @@ from bot.database.crud import visits as visit_crud
 
 
 
+
 @dp.message_handler(commands=["start"], state="*")
 async def start_command(message: types.Message, state: FSMContext):
-    """Обработчик команды /start с поддержкой рефералки"""
     log_info(f"start_command | message: {message.text}")
     await state.finish()
     log_info(f'message.from_user: {message.from_user}')
+
     with db.session_scope() as session:
         user_crud.get_or_create(session, message.from_user)
         visit_crud.log_visit(session, message.from_user)
-    
-    args = message.get_args()
-    if args.isdigit():
-        inviter_telegram_id = int(args)
-        if inviter_telegram_id != message.from_user.id:
-            db.add_referral(inviter_telegram_id, message.from_user.id)
-            log_info(f"User {message.from_user.id} был приглашен пользователем {inviter_telegram_id}")
-        else:
-            log_info("Пользователь попытался пригласить сам себя — пропускаем")
+
+        args = message.get_args()
+        if args.isdigit():
+            inviter_telegram_id = int(args)
+            if inviter_telegram_id != message.from_user.id:
+                referral_crud.add_referral(session, inviter_telegram_id, message.from_user.id)
+                log_info(f"User {message.from_user.id} был приглашен пользователем {inviter_telegram_id}")
+            else:
+                log_info("Пользователь попытался пригласить сам себя — пропускаем")
 
     await message.answer(
         "Привет! Готов помочь тебе составить персональную программу тренировок и питания 💪\n\n"
@@ -78,7 +83,8 @@ async def check_payment_status_command(message: types.Message):
     """Обработчик команды для проверки статуса оплаты (антиспам!)"""
     log_info(f"check_payment_status_command | from user {message.from_user.id}")
 
-    applications = db.get_user_applications(message.from_user.id)
+    with db.session_scope() as session:
+        applications = application_crud.get_user_applications(session, message.from_user.id)
 
     if not applications:
         await message.answer("У тебя еще нет заявок. Чтобы создать заявку, нажми /start")

@@ -5,6 +5,7 @@ from bot.settings.setup_bot import dp
 from bot.states.states import ParticipantStates
 from bot.utils.logger import log_info 
 from bot.utils.utils import send_with_progress
+from bot.utils.debug_log import log_user_input, log_fsm_state
 from bot.keyboards.keyboards import get_back_keyboard, get_training_time_keyboard, get_training_location_keyboard, \
     get_fitness_level_keyboard, get_training_frequency_keyboard, get_training_types_keyboard, get_training_duration_keyboard, \
     get_limitations_keyboard, get_eating_schedule_keyboard, get_training_goals_keyboard, get_physical_condition_keyboard
@@ -13,7 +14,8 @@ from bot.keyboards.keyboards import get_back_keyboard, get_training_time_keyboar
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_PHYSICAL_CONDITION)
 async def process_physical_condition(message: types.Message, state: FSMContext):
     """Обработка физической формы"""
-    log_info(f"process_physical_condition | message: {message.text}")
+    log_user_input(message, label="PHYSICAL_CONDITION")
+
     if message.text == "⬅️ Назад":
         await ParticipantStates.WAITING_FOR_WEIGHT.set()
         await message.answer("Какой у тебя вес в килограммах?", reply_markup=get_back_keyboard())
@@ -31,6 +33,7 @@ async def process_physical_condition(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(physical_condition=physical_condition)
+    await log_fsm_state(message, state)
 
     await ParticipantStates.WAITING_FOR_TRAINING_GOALS.set()
     await send_with_progress(message, state, "Тренировочные предпочтения и цели?", reply_markup=ReplyKeyboardRemove())
@@ -55,7 +58,9 @@ async def process_physical_condition_details(message: types.Message, state: FSMC
 @dp.callback_query_handler(state=ParticipantStates.WAITING_FOR_TRAINING_GOALS)
 async def process_training_goals(callback_query: types.CallbackQuery, state: FSMContext):
     """Обработка тренировочных целей из инлайн кнопок"""
-    log_info(f"process_training_goals | callback_query.data: {callback_query.data}")
+    user = callback_query.from_user
+    log_info(f"[TRAINING_GOALS] {user.id} | @{user.username} | {user.first_name} {user.last_name} | data: {callback_query.data}")
+
     data = callback_query.data
     await callback_query.answer()
 
@@ -97,7 +102,6 @@ async def process_training_goals(callback_query: types.CallbackQuery, state: FSM
 
     await callback_query.answer()
     await ParticipantStates.WAITING_FOR_MAIN_GOAL.set()
-    # await callback_query.message.answer("Какова твоя главная цель?", reply_markup=get_back_keyboard())
     await send_with_progress(callback_query.message, state,"Какова твоя главная цель?",reply_markup=get_back_keyboard())
 
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_TRAINING_GOALS_DETAILS)
@@ -128,7 +132,7 @@ async def process_training_goals_details(message: types.Message, state: FSMConte
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_MAIN_GOAL)
 async def process_main_goal(message: types.Message, state: FSMContext):
     """Обработка главной цели"""
-    log_info(f"process_main_goal | message: {message.text}")
+    log_user_input(message, label="MAIN_GOAL")
     if message.text == "⬅️ Назад":
         await ParticipantStates.WAITING_FOR_TRAINING_GOALS.set()
         await message.answer("Тренировочные предпочтения и цели?", reply_markup=get_training_goals_keyboard())
@@ -136,6 +140,7 @@ async def process_main_goal(message: types.Message, state: FSMContext):
 
     main_goal = message.text.strip()
     await state.update_data(main_goal=main_goal)
+    await log_fsm_state(message, state)
 
     await ParticipantStates.WAITING_FOR_FITNESS_LEVEL.set()
     await send_with_progress(message, state, "Твой уровень физической подготовки?", reply_markup=get_fitness_level_keyboard())
@@ -143,7 +148,8 @@ async def process_main_goal(message: types.Message, state: FSMContext):
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_FITNESS_LEVEL)
 async def process_fitness_level(message: types.Message, state: FSMContext):
     """Обработка уровня физической подготовки"""
-    log_info(f"process_fitness_level | message: {message.text}")
+    log_user_input(message, label="FITNESS_LEVEL")
+
     if message.text == "⬅️ Назад":
         await ParticipantStates.WAITING_FOR_MAIN_GOAL.set()
         await send_with_progress(message, state, "Какова твоя главная цель?", reply_markup=get_back_keyboard())
@@ -156,6 +162,7 @@ async def process_fitness_level(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(fitness_level=fitness_level)
+    await log_fsm_state(message, state)
 
     await ParticipantStates.WAITING_FOR_TRAINING_LOCATION.set()
     await send_with_progress(message, state, "Где ты предпочитаешь тренироваться?", reply_markup=get_training_location_keyboard())
@@ -164,7 +171,8 @@ async def process_fitness_level(message: types.Message, state: FSMContext):
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_TRAINING_LOCATION)
 async def process_training_location(message: types.Message, state: FSMContext):
     """Обработка предпочтений по месту тренировки"""
-    log_info(f"process_training_location | message: {message.text}")
+    log_user_input(message, label="TRAINING_LOCATION")
+
     if message.text == "⬅️ Назад":
         await ParticipantStates.WAITING_FOR_FITNESS_LEVEL.set()
         await send_with_progress(message, state, "Твой уровень физической подготовки?", reply_markup=get_fitness_level_keyboard())
@@ -180,6 +188,7 @@ async def process_training_location(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(training_location=training_location)
+    await log_fsm_state(message, state)
 
     await ParticipantStates.WAITING_FOR_TRAINING_TIME.set()
     await send_with_progress(message, state, "Какое время суток тебе наиболее удобно для тренировок?", reply_markup=get_training_time_keyboard())
@@ -188,7 +197,8 @@ async def process_training_location(message: types.Message, state: FSMContext):
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_TRAINING_TIME)
 async def process_training_time(message: types.Message, state: FSMContext):
     """Обработка времени суток для тренировок"""
-    log_info(f"process_training_time | message: {message.text}")
+    log_user_input(message, label="TRAINING_TIME")
+
     if message.text == "⬅️ Назад":
         await ParticipantStates.WAITING_FOR_TRAINING_LOCATION.set()
         await send_with_progress(message, state, "Где ты предпочитаешь тренироваться?", reply_markup=get_training_location_keyboard())
@@ -203,6 +213,7 @@ async def process_training_time(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(training_time=training_time)
+    await log_fsm_state(message, state)
 
     await ParticipantStates.WAITING_FOR_TRAINING_FREQUENCY.set() 
     await send_with_progress(message, state, "Сколько тренировок в неделю ты планируешь?", reply_markup=get_training_frequency_keyboard())
@@ -211,7 +222,8 @@ async def process_training_time(message: types.Message, state: FSMContext):
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_TRAINING_FREQUENCY)
 async def process_training_frequency(message: types.Message, state: FSMContext):
     """Обработка количества тренировок в неделю"""
-    log_info(f"process_training_frequency | message: {message.text}")
+    log_user_input(message, label="TRAINING_FREQUENCY")
+
     if message.text == "⬅️ Назад":
         await ParticipantStates.WAITING_FOR_TRAINING_TIME.set()
         await message.answer("Какое время суток тебе наиболее удобно для тренировок?", 
@@ -227,6 +239,7 @@ async def process_training_frequency(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(training_frequency=training_frequency)
+    await log_fsm_state(message, state)
 
 
     await ParticipantStates.WAITING_FOR_TRAINING_DURATION.set()
@@ -237,7 +250,8 @@ async def process_training_frequency(message: types.Message, state: FSMContext):
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_TRAINING_DURATION)
 async def process_training_duration(message: types.Message, state: FSMContext):
     """Обработка длительности тренировок"""
-    log_info(f"process_training_duration | message: {message.text}")
+    log_user_input(message, label="TRAINING_DURATION")
+
     if message.text == "⬅️ Назад":
         await ParticipantStates.WAITING_FOR_TRAINING_FREQUENCY.set()
         await message.answer("Сколько тренировок в неделю ты планируешь?", 
@@ -253,6 +267,7 @@ async def process_training_duration(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(training_duration=training_duration)
+    await log_fsm_state(message, state)
 
     user_data = await state.get_data()
     if not user_data.get("video_sent"):
@@ -267,7 +282,8 @@ async def process_training_duration(message: types.Message, state: FSMContext):
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_TRAINING_TYPES)
 async def process_training_types(message: types.Message, state: FSMContext):
     """Обработка предпочитаемых видов тренировок"""
-    log_info(f"process_training_types | message: {message.text}")
+    log_user_input(message, label="TRAINING_TYPES")
+
     if message.text == "⬅️ Назад":
         await ParticipantStates.WAITING_FOR_TRAINING_DURATION.set()
         await send_with_progress(message, state, "Какая длительность тренировок тебе подходит?", reply_markup=get_training_duration_keyboard())
@@ -290,6 +306,7 @@ async def process_training_types(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(training_types=training_types)
+    await log_fsm_state(message, state)
 
     await ParticipantStates.WAITING_FOR_LIMITATIONS.set()
     await send_with_progress(message, state, "Имеются ли ограничения или особенности (травмы, боли)?", reply_markup=get_limitations_keyboard())
@@ -298,7 +315,8 @@ async def process_training_types(message: types.Message, state: FSMContext):
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_LIMITATIONS)
 async def process_limitations(message: types.Message, state: FSMContext):
     """Обработка наличия ограничений"""
-    log_info(f"process_limitations | message: {message.text}")
+    log_user_input(message, label="LIMITATIONS")
+
     if message.text == "⬅️ Назад":
         await ParticipantStates.WAITING_FOR_TRAINING_TYPES.set()
         await send_with_progress(message, state, "Какие виды тренировок ты предпочитаешь?", reply_markup=get_training_types_keyboard())
@@ -311,6 +329,7 @@ async def process_limitations(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(has_limitations=limitations)
+    await log_fsm_state(message, state)
 
     if limitations == "Да":
         await ParticipantStates.WAITING_FOR_LIMITATIONS_DETAILS.set()
@@ -323,7 +342,8 @@ async def process_limitations(message: types.Message, state: FSMContext):
 @dp.message_handler(state=ParticipantStates.WAITING_FOR_LIMITATIONS_DETAILS)
 async def process_limitations_details(message: types.Message, state: FSMContext):
     """Обработка деталей ограничений"""
-    log_info(f"process_limitations_details | message: {message.text}")
+    log_user_input(message, label="LIMITATIONS_DETAILS")
+
     if message.text == "⬅️ Назад":
         await ParticipantStates.WAITING_FOR_LIMITATIONS.set()
         await send_with_progress(message, state, "Имеются ли ограничения или особенности (травмы, боли)?", reply_markup=get_limitations_keyboard())
@@ -336,6 +356,7 @@ async def process_limitations_details(message: types.Message, state: FSMContext)
         return
 
     await state.update_data(limitations_details=limitations_details)
+    await log_fsm_state(message, state)
 
     await ParticipantStates.WAITING_FOR_EATING_SCHEDULE.set()
     await send_with_progress(message, state, "Какой режим питания для тебя привычен?", reply_markup=get_eating_schedule_keyboard())

@@ -1,6 +1,26 @@
 from sqlalchemy.orm import Session
-from bot.database.models import UserVisit
 from datetime import datetime
+from sqlalchemy import func
+from bot.database.models import UserVisit
+
+
+def get_daily_visits(session: Session, limit: int = 30) -> list[tuple[str, int]]:
+    result = (
+        session.query(
+            func.date(UserVisit.visit_time).label("visit_date"),
+            func.count().label("visit_count")
+        )
+        .group_by("visit_date")
+        .order_by("visit_date DESC")
+        .limit(limit)
+        .all()
+    )
+    return result  # вернет кортеж: [(дата, кол-во), ...]
+
+
+
+def get_unique_user_count(session: Session) -> int:
+    return session.query(func.count(func.distinct(UserVisit.telegram_id))).scalar()
 
 
 def log_visit(session: Session, tg_user):
